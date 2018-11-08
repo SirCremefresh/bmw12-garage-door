@@ -22,7 +22,7 @@ void WIFI_Connect()
   WiFi.disconnect();
   Serial.println("Connecting to WiFi...");
   WiFi.mode(WIFI_AP_STA);
-  WiFi.begin(systemConfig.ssid.c_str(), systemConfig.password.c_str());
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
   while (WiFi.status() != WL_CONNECTED)
   {
@@ -48,11 +48,11 @@ void MQTT_Connect()
   {
     Serial.print("Attempting MQTT connection...");
     // Attempt to connect
-    if (client.connect(systemConfig.name.c_str(), systemConfig.mqttuser.c_str(), systemConfig.mqttpassword.c_str()))
+    if (client.connect(PLACE, MQTT_USER, MQTT_PASSWORD))
     {
       Serial.println("connected");
 
-      client.subscribe((systemConfig.name + "-get-state").c_str());
+      client.subscribe(PLACE"-get-state");
     }
     else
     {
@@ -81,11 +81,11 @@ void sendCurrentState(bool isChangeEvt)
 {
   reedSwitchState = getReedSwitchState();
 
-  char* content = bmw12::createJson("reed-switch", systemConfig.name.c_str(), "garage-door", reedSwitchState, isChangeEvt);
+  char* content = bmw12::createJson("reed-switch", PLACE, SENSOR_NAME, reedSwitchState, isChangeEvt);
 
   Serial.println(("current state: " + BoolToString(reedSwitchState)).c_str());
 
-  client.publish(("iot/" + systemConfig.name + "/reed-switch/garage-door").c_str(), content);
+  client.publish("iot/" PLACE "/reed-switch/garage-door", content);
 
   free(content);
 }
@@ -104,7 +104,7 @@ void setup()
   pinMode(wifiLedPin, OUTPUT);
   WIFI_Connect();
 
-  client.setServer(systemConfig.mqtthost.c_str(), systemConfig.mqttport);
+  client.setServer(MQTT_HOST, MQTT_PORT);
   client.setCallback(callback);
 
   MQTT_Connect();
