@@ -4,6 +4,9 @@
 #include "iot-json-creator.h"
 #include <../include/system-config.h>
 
+#define TRUE_STR "true"
+#define FALSE_STR "false"
+
 WiFiClient espClient;
 PubSubClient client(espClient);
 
@@ -12,9 +15,17 @@ const int reedSwitchPin = 13;
 
 bool reedSwitchState;
 
-std::string BoolToString(bool b)
+
+static const char *BoolToString(bool b)
 {
-  return b ? "true" : "false";
+  if (b)
+  {
+    return TRUE_STR;
+  }
+  else
+  {
+    return FALSE_STR;
+  }
 }
 
 void WIFI_Connect()
@@ -52,7 +63,7 @@ void MQTT_Connect()
     {
       Serial.println("connected");
 
-      client.subscribe(PLACE"-get-state");
+      client.subscribe(PLACE "-get-state");
     }
     else
     {
@@ -74,16 +85,16 @@ bool getReedSwitchState()
   delay(10);
   reedState += digitalRead(reedSwitchPin) == 0 ? 1 : 0;
 
-  return (reedState >= 2)? true: false;
+  return (reedState >= 2) ? true : false;
 }
 
 void sendCurrentState(bool isChangeEvt)
 {
   reedSwitchState = getReedSwitchState();
 
-  char* content = bmw12::createJson("reed-switch", PLACE, SENSOR_NAME, reedSwitchState, isChangeEvt);
+  char *content = bmw12::createJson("reed-switch", PLACE, SENSOR_NAME, reedSwitchState, isChangeEvt);
 
-  Serial.println(("current state: " + BoolToString(reedSwitchState)).c_str());
+  Serial.printf("current state: %s", BoolToString(reedSwitchState));
 
   client.publish("iot/" PLACE "/reed-switch/garage-door", content);
 
