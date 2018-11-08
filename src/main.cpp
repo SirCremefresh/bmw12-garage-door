@@ -1,5 +1,7 @@
+#include <Arduino.h>
 #include <WiFi.h>
 #include <PubSubClient.h>
+#include "iot-json-creator.h"
 #include <../include/system-config.h>
 
 WiFiClient espClient;
@@ -79,20 +81,13 @@ void sendCurrentState(bool isChangeEvt)
 {
   reedSwitchState = getReedSwitchState();
 
-  std::string content =
-      "{ \
-\"type\": \"reed-switch\", \
-\"place\": \"" +
-      systemConfig.name + "\", \
-\"sensorName\": \"garage-door\", \
-\"value\": " +
-      BoolToString(reedSwitchState) + ", \
-\"isChangeEvt\":" + BoolToString(isChangeEvt) + " \
-}";
+  char* content = bmw12::createJson("reed-switch", systemConfig.name.c_str(), "garage-door", reedSwitchState, isChangeEvt);
 
   Serial.println(("current state: " + BoolToString(reedSwitchState)).c_str());
 
-  client.publish(("iot/" + systemConfig.name + "/reed-switch/garage-door").c_str(), content.c_str());
+  client.publish(("iot/" + systemConfig.name + "/reed-switch/garage-door").c_str(), content);
+
+  free(content);
 }
 
 void callback(char *topic, byte *payload, unsigned int length)
