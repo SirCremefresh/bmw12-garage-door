@@ -54,6 +54,13 @@ void loop()
   }
 
   delay(50);
+
+  // After 50 days milis turns back to 0
+  if (millis() < previousSend)
+  {
+    previousSendChange = millis();
+    previousSend = millis();
+  }
 }
 
 void sendCurrentState(bool isChangeEvt)
