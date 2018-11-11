@@ -2,6 +2,7 @@
 #include "iot-json-creator.h"
 #include "iot-simple-wifi.h"
 #include "iot-simple-mqtt.h"
+#include "iot-reed-switch.h"
 #include <../include/system-config.h>
 
 #define TRUE_STR "true"
@@ -16,7 +17,6 @@ unsigned long previousSend = 0;
 static const unsigned long sendInterval = 5 * 60 * 1000;
 static const unsigned long checkChangeInterval = 500;
 
-bool getReedSwitchState();
 void sendCurrentState(bool isChangeEvt);
 static const char *BoolToString(bool b);
 
@@ -43,7 +43,7 @@ void loop()
   if (millis() - previousSend > checkChangeInterval)
   {
     previousSend = millis();
-    if (getReedSwitchState() != reedSwitchState)
+    if (bmw12::reedSwitchGet(REED_SWITCH_PIN) != reedSwitchState)
     {
       sendCurrentState(true);
     }
@@ -52,21 +52,9 @@ void loop()
   delay(50);
 }
 
-bool getReedSwitchState()
-{
-  int reedState = 0;
-  reedState += digitalRead(REED_SWITCH_PIN) == 0 ? 1 : 0;
-  delay(10);
-  reedState += digitalRead(REED_SWITCH_PIN) == 0 ? 1 : 0;
-  delay(10);
-  reedState += digitalRead(REED_SWITCH_PIN) == 0 ? 1 : 0;
-
-  return (reedState >= 2) ? true : false;
-}
-
 void sendCurrentState(bool isChangeEvt)
 {
-  reedSwitchState = getReedSwitchState();
+  reedSwitchState = bmw12::reedSwitchGet(REED_SWITCH_PIN);
 
   char *content = bmw12::createJson("reed-switch", PLACE, "garage-door", reedSwitchState, isChangeEvt);
 
