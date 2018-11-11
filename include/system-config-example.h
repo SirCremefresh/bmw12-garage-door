@@ -2,7 +2,7 @@
 #define SYSTEM_CONFIG_H
 
 #define PLACE "garage"
-#define SENSOR_NAME "garage-door"
+#define REED_SWITCH_PIN 13
 
 #define WIFI_SSID ""
 #define WIFI_PASSWORD ""

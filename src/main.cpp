@@ -1,20 +1,81 @@
 #include <Arduino.h>
-#include <WiFi.h>
-#include <PubSubClient.h>
 #include "iot-json-creator.h"
+#include "iot-simple-wifi.h"
+#include "iot-simple-mqtt.h"
 #include <../include/system-config.h>
 
 #define TRUE_STR "true"
 #define FALSE_STR "false"
 
-WiFiClient espClient;
-PubSubClient client(espClient);
+bmw12::Wifi wifi;
+bmw12::Mqtt mqtt;
 
-const int wifiLedPin = BUILTIN_LED;
-const int reedSwitchPin = 13;
+bool reedSwitchState = false;
 
-bool reedSwitchState;
+unsigned long previousSend = 0;
+static const unsigned long sendInterval = 5 * 60 * 1000;
+static const unsigned long checkChangeInterval = 500;
 
+bool getReedSwitchState();
+void sendCurrentState(bool isChangeEvt);
+static const char *BoolToString(bool b);
+
+void setup()
+{
+  Serial.begin(9600);
+  delay(10);
+
+  wifi.connect(WIFI_SSID, WIFI_PASSWORD);
+  mqtt.connect(MQTT_HOST, MQTT_PORT, "garage", MQTT_USER, MQTT_PASSWORD);
+}
+
+void loop()
+{
+  wifi.check();
+  mqtt.check();
+
+  if (millis() - previousSend > sendInterval)
+  {
+    previousSend = millis();
+    sendCurrentState(false);
+  }
+
+  if (millis() - previousSend > checkChangeInterval)
+  {
+    previousSend = millis();
+    if (getReedSwitchState() != reedSwitchState)
+    {
+      sendCurrentState(true);
+    }
+  }
+
+  delay(50);
+}
+
+bool getReedSwitchState()
+{
+  int reedState = 0;
+  reedState += digitalRead(REED_SWITCH_PIN) == 0 ? 1 : 0;
+  delay(10);
+  reedState += digitalRead(REED_SWITCH_PIN) == 0 ? 1 : 0;
+  delay(10);
+  reedState += digitalRead(REED_SWITCH_PIN) == 0 ? 1 : 0;
+
+  return (reedState >= 2) ? true : false;
+}
+
+void sendCurrentState(bool isChangeEvt)
+{
+  reedSwitchState = getReedSwitchState();
+
+  char *content = bmw12::createJson("reed-switch", PLACE, "garage-door", reedSwitchState, isChangeEvt);
+
+  Serial.printf("current state: %s \n", BoolToString(reedSwitchState));
+
+  mqtt.send("iot/" PLACE "/reed-switch/garage-door", content);
+
+  free(content);
+}
 
 static const char *BoolToString(bool b)
 {
@@ -26,136 +87,4 @@ static const char *BoolToString(bool b)
   {
     return FALSE_STR;
   }
-}
-
-void WIFI_Connect()
-{
-  WiFi.disconnect();
-  Serial.println("Connecting to WiFi...");
-  WiFi.mode(WIFI_AP_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(250);
-    digitalWrite(wifiLedPin, LOW);
-    Serial.print(".");
-    delay(250);
-    digitalWrite(wifiLedPin, HIGH);
-  }
-
-  Serial.println("");
-  Serial.println("WiFi Connected");
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
-
-  digitalWrite(wifiLedPin, HIGH);
-}
-
-void MQTT_Connect()
-{
-  // Loop until we're reconnected
-  while (!client.connected())
-  {
-    Serial.print("Attempting MQTT connection...");
-    // Attempt to connect
-    if (client.connect(PLACE, MQTT_USER, MQTT_PASSWORD))
-    {
-      Serial.println("connected");
-
-      client.subscribe(PLACE "-get-state");
-    }
-    else
-    {
-      Serial.print("failed, rc=");
-      Serial.print(client.state());
-      Serial.println(" try again in 5 seconds");
-      // Wait 5 seconds before retrying
-      delay(5000);
-    }
-  }
-}
-
-bool getReedSwitchState()
-{
-  int reedState = 0;
-  reedState += digitalRead(reedSwitchPin) == 0 ? 1 : 0;
-  delay(10);
-  reedState += digitalRead(reedSwitchPin) == 0 ? 1 : 0;
-  delay(10);
-  reedState += digitalRead(reedSwitchPin) == 0 ? 1 : 0;
-
-  return (reedState >= 2) ? true : false;
-}
-
-void sendCurrentState(bool isChangeEvt)
-{
-  reedSwitchState = getReedSwitchState();
-
-  char *content = bmw12::createJson("reed-switch", PLACE, SENSOR_NAME, reedSwitchState, isChangeEvt);
-
-  Serial.printf("current state: %s", BoolToString(reedSwitchState));
-
-  client.publish("iot/" PLACE "/reed-switch/garage-door", content);
-
-  free(content);
-}
-
-void callback(char *topic, byte *payload, unsigned int length)
-{
-  Serial.println("sending current state on request");
-  sendCurrentState(false);
-}
-
-void setup()
-{
-  Serial.begin(9600);
-  delay(10);
-
-  pinMode(wifiLedPin, OUTPUT);
-  WIFI_Connect();
-
-  client.setServer(MQTT_HOST, MQTT_PORT);
-  client.setCallback(callback);
-
-  MQTT_Connect();
-
-  sendCurrentState(false);
-}
-
-unsigned long previousMillis = 0;
-long sendInterval = 5 * 60 * 1000;
-long checkStateChangeInterval = 500;
-
-void loop()
-{
-  if (WiFi.status() != WL_CONNECTED)
-  {
-    WIFI_Connect();
-  }
-  if (!client.connected())
-  {
-    MQTT_Connect();
-  }
-
-  client.loop();
-
-  unsigned long currentMillis = millis();
-
-  if (currentMillis - previousMillis > sendInterval)
-  {
-    previousMillis = currentMillis;
-    sendCurrentState(false);
-  }
-
-  if (currentMillis - previousMillis > checkStateChangeInterval)
-  {
-    previousMillis = currentMillis;
-    if (getReedSwitchState() != reedSwitchState)
-    {
-      sendCurrentState(true);
-    }
-  }
-
-  delay(50);
 }
