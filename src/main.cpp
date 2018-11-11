@@ -14,6 +14,7 @@ bmw12::Mqtt mqtt;
 bool reedSwitchState = false;
 
 unsigned long previousSend = 0;
+unsigned long previousSendChange = 0;
 static const unsigned long sendInterval = 5 * 60 * 1000;
 static const unsigned long checkChangeInterval = 500;
 
@@ -27,6 +28,9 @@ void setup()
 
   wifi.connect(WIFI_SSID, WIFI_PASSWORD);
   mqtt.connect(MQTT_HOST, MQTT_PORT, "garage", MQTT_USER, MQTT_PASSWORD);
+
+  sendCurrentState(false);
+  previousSend = millis();
 }
 
 void loop()
@@ -40,9 +44,9 @@ void loop()
     sendCurrentState(false);
   }
 
-  if (millis() - previousSend > checkChangeInterval)
+  if (millis() - previousSendChange > checkChangeInterval)
   {
-    previousSend = millis();
+    previousSendChange = millis();
     if (bmw12::reedSwitchGet(REED_SWITCH_PIN) != reedSwitchState)
     {
       sendCurrentState(true);
