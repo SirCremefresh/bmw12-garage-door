@@ -29,6 +29,10 @@ void setup()
   wifi.connect(WIFI_SSID, WIFI_PASSWORD);
   mqtt.connect(MQTT_HOST, MQTT_PORT, "garage", MQTT_USER, MQTT_PASSWORD);
 
+  String *initialMessage = bmw12::createJson("boot", PLACE, "garage-door");
+  mqtt.send("iot/" PLACE "/garage-door/reed-switch", initialMessage);
+  delete initialMessage;
+
   sendCurrentState(false);
   previousSend = millis();
 }
@@ -67,13 +71,13 @@ void sendCurrentState(bool isChangeEvt)
 {
   reedSwitchState = bmw12::reedSwitchGet(REED_SWITCH_PIN);
 
-  char *content = bmw12::createJson("reed-switch", PLACE, "garage-door", reedSwitchState, isChangeEvt);
+  const String *content = bmw12::createJson("reed-switch", "garage-door", PLACE, "garage-door", reedSwitchState, isChangeEvt);
 
   Serial.printf("current state: %s \n", BoolToString(reedSwitchState));
 
-  mqtt.send("iot/" PLACE "/reed-switch/garage-door", content);
+  mqtt.send("iot/" PLACE "/garage-door/reed-switch/garage-door", content);
 
-  free(content);
+  delete content;
 }
 
 static const char *BoolToString(bool b)
