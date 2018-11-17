@@ -1,15 +1,19 @@
 #include <Arduino.h>
+#include "DHT.h"
 #include "iot-json-creator.h"
 #include "iot-simple-wifi.h"
 #include "iot-simple-mqtt.h"
 #include "iot-reed-switch.h"
 #include <../include/system-config.h>
 
+#define DHTTYPE DHT11
+
 #define TRUE_STR "true"
 #define FALSE_STR "false"
 
 bmw12::Wifi wifi;
 bmw12::Mqtt mqtt;
+DHT dht(DHTPIN, DHTTYPE);
 
 bool reedSwitchState = false;
 
@@ -18,13 +22,17 @@ unsigned long previousSendChange = 0;
 static const unsigned long sendInterval = 5 * 60 * 1000;
 static const unsigned long checkChangeInterval = 500;
 
-void sendCurrentState(bool isChangeEvt);
+void sendCurrentReedState(bool isChangeEvt);
+void sendCurrentTempAndHumidity();
+void connect();
 static const char *BoolToString(bool b);
 
 void setup()
 {
   Serial.begin(9600);
   delay(10);
+
+  dht.begin();
 
   wifi.connect(WIFI_SSID, WIFI_PASSWORD);
   mqtt.connect(MQTT_HOST, MQTT_PORT, "garage", MQTT_USER, MQTT_PASSWORD);
@@ -33,19 +41,20 @@ void setup()
   mqtt.send("iot/" PLACE "/garage-door/reed-switch", initialMessage);
   delete initialMessage;
 
-  sendCurrentState(false);
+  sendCurrentReedState(false);
+  sendCurrentTempAndHumidity();
   previousSend = millis();
 }
 
 void loop()
 {
-  wifi.check();
-  mqtt.check();
+  connect();
 
   if (millis() - previousSend > sendInterval)
   {
     previousSend = millis();
-    sendCurrentState(false);
+    sendCurrentReedState(false);
+    sendCurrentTempAndHumidity();
   }
 
   if (millis() - previousSendChange > checkChangeInterval)
@@ -53,7 +62,8 @@ void loop()
     previousSendChange = millis();
     if (bmw12::reedSwitchGet(REED_SWITCH_PIN) != reedSwitchState)
     {
-      sendCurrentState(true);
+
+      sendCurrentReedState(true);
     }
   }
 
@@ -67,17 +77,51 @@ void loop()
   }
 }
 
-void sendCurrentState(bool isChangeEvt)
+void sendCurrentReedState(bool isChangeEvt)
 {
   reedSwitchState = bmw12::reedSwitchGet(REED_SWITCH_PIN);
 
-  const String *content = bmw12::createJson("reed-switch", "garage-door", PLACE, "garage-door", reedSwitchState, isChangeEvt);
+  const String *content = bmw12::createJson("reed-switch", PLACE, "garage-door", "garage-door", reedSwitchState, isChangeEvt);
 
   Serial.printf("current state: %s \n", BoolToString(reedSwitchState));
 
   mqtt.send("iot/" PLACE "/garage-door/reed-switch/garage-door", content);
 
   delete content;
+}
+
+void sendCurrentTempAndHumidity()
+{
+  const int maxRetry = 2;
+
+  for (int i = 0; i < maxRetry; i++)
+  {
+    float h = dht.readHumidity();
+    float t = dht.readTemperature();
+
+    if (!isnan(t) && !isnan(h))
+    {
+      const String *contentTemp = bmw12::createJson("temparature", PLACE, "garage-door", "dht11", t);
+      Serial.printf("current temparature: %f \n", t);
+      mqtt.send("iot/" PLACE "/garage-door/", contentTemp);
+      delete contentTemp;
+
+      const String *contentHumi = bmw12::createJson("humidity", PLACE, "garage-door", "dht11", h);
+      Serial.printf("current humidity: %f \n", h);
+      mqtt.send("iot/" PLACE "/garage-door/humidity/dht11", contentHumi);
+      delete contentHumi;
+
+      return;
+    }
+  }
+
+  Serial.println("failed to reed temp and humidity");
+}
+
+void connect()
+{
+  wifi.check();
+  mqtt.check();
 }
 
 static const char *BoolToString(bool b)

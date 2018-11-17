@@ -12,4 +12,6 @@
 #define MQTT_USER ""
 #define MQTT_PASSWORD ""
 
+#define DHTPIN 5 
+
 #endif
