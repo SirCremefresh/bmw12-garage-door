@@ -103,7 +103,7 @@ void sendCurrentTempAndHumidity()
     {
       const String *contentTemp = bmw12::createJson("temparature", PLACE, "garage-door", "dht11", t);
       Serial.printf("current temparature: %f \n", t);
-      mqtt.send("iot/" PLACE "/garage-door/", contentTemp);
+      mqtt.send("iot/" PLACE "/garage-door/temparature/dht11", contentTemp);
       delete contentTemp;
 
       const String *contentHumi = bmw12::createJson("humidity", PLACE, "garage-door", "dht11", h);
